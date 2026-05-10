@@ -22,7 +22,9 @@ use tracing::{info, warn};
 mod rpc;
 
 use blvm_node::module::traits::{EventType, ModuleError};
+use blvm_sdk::module::runner::InvocationContext;
 use blvm_sdk::module::{ModuleBootstrap, ModuleDb};
+use blvm_sdk_macros::{command, rpc_method, rpc_methods};
 
 const MODULE_NAME: &str = "blvm-miniscript";
 
@@ -31,7 +33,7 @@ const MODULE_NAME: &str = "blvm-miniscript";
 #[derive(Clone)]
 pub struct MiniscriptModule;
 
-#[blvm_sdk_macros::rpc_methods]
+#[rpc_methods]
 impl MiniscriptModule {
     #[rpc_method(name = "getdescriptorinfo")]
     pub fn rpc_getdescriptorinfo(
@@ -53,20 +55,30 @@ impl MiniscriptModule {
 }
 
 // `#[command]` generates `cli_spec()` and `dispatch_cli()` from `#[command(name=...)]` methods.
-#[blvm_sdk_macros::command]
+#[command(name = "blvm-miniscript")]
 impl MiniscriptModule {
     #[command(name = "help")]
-    fn cmd_help(&self, _args: &[String]) -> Result<String, ModuleError> {
-        Ok("blvm-miniscript: provides getdescriptorinfo and analyzepsbt RPC methods.\n\
+    fn cmd_help(&self, _ctx: &InvocationContext) -> Result<String, ModuleError> {
+        Ok(
+            "blvm-miniscript: provides getdescriptorinfo and analyzepsbt RPC methods.\n\
             Use bitcoin-cli getdescriptorinfo <descriptor>\n\
             Use bitcoin-cli analyzepsbt <psbt_base64>"
-            .to_string())
+                .to_string(),
+        )
     }
 }
 
 impl MiniscriptModule {
     pub fn event_types() -> Vec<EventType> {
         vec![]
+    }
+
+    pub async fn dispatch_event(
+        &self,
+        _event: blvm_node::module::ipc::protocol::EventMessage,
+        _ctx: &InvocationContext,
+    ) -> Result<(), ModuleError> {
+        Ok(())
     }
 }
 
@@ -92,10 +104,7 @@ async fn main() -> Result<()> {
                     .await
                 {
                     Ok(()) => info!("Registered core RPC override: {}", method),
-                    Err(e) => warn!(
-                        "Failed to register core RPC override '{}': {}",
-                        method, e
-                    ),
+                    Err(e) => warn!("Failed to register core RPC override '{}': {}", method, e),
                 }
             }
 

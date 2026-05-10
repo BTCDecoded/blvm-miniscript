@@ -5,7 +5,6 @@
 //! `blvm-node/src/miniscript.rs` and `blvm-node/src/rpc/miniscript.rs`.
 
 use miniscript::bitcoin;
-use miniscript::policy::concrete::Policy;
 use miniscript::{Descriptor, Miniscript, Segwitv0};
 use serde_json::{json, Value};
 use std::str::FromStr;
@@ -215,7 +214,10 @@ mod tests {
             "pk(02c6047f9441ed7d6d3045406e95c07cd85c778e4b8a8f3af4eb0c8666e7c1914)"
         ]);
         let result = get_descriptor_info(&params);
-        assert!(result.get("error").is_none(), "should not error on valid pk descriptor");
+        assert!(
+            result.get("error").is_none(),
+            "should not error on valid pk descriptor"
+        );
         assert_eq!(result["hasprivatekeys"], false);
     }
 
@@ -229,6 +231,8 @@ mod tests {
     #[test]
     fn test_range_descriptor_detection() {
         assert!(is_range_descriptor("pkh(xpub.../0/*)"));
-        assert!(!is_range_descriptor("pk(02c6047f9441ed7d6d3045406e95c07cd85c778e4b8a8f3af4eb0c8666e7c1914)"));
+        assert!(!is_range_descriptor(
+            "pk(02c6047f9441ed7d6d3045406e95c07cd85c778e4b8a8f3af4eb0c8666e7c1914)"
+        ));
     }
 }
