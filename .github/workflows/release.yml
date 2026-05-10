@@ -1,0 +1,204 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+            artifact_name: blvm-miniscript-x86_64-linux
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-22.04
+            artifact_name: blvm-miniscript-aarch64-linux
+            use_cross: true
+          - target: x86_64-apple-darwin
+            os: macos-13
+            artifact_name: blvm-miniscript-x86_64-macos
+          - target: aarch64-apple-darwin
+            os: macos-14
+            artifact_name: blvm-miniscript-aarch64-macos
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross (for cross-compilation)
+        if: matrix.use_cross
+        run: cargo install cross --locked
+
+      - name: Build release binary
+        run: |
+          if [ "${{ matrix.use_cross }}" = "true" ]; then
+            cross build --release --target ${{ matrix.target }}
+          else
+            cargo build --release --target ${{ matrix.target }}
+          fi
+        env:
+          CARGO_INCREMENTAL: "0"
+
+      - name: Compute sha256
+        id: sha256
+        run: |
+          BINARY="target/${{ matrix.target }}/release/blvm-miniscript"
+          cp "$BINARY" "${{ matrix.artifact_name }}"
+          if command -v sha256sum &>/dev/null; then
+            SHA=$(sha256sum "${{ matrix.artifact_name }}" | awk '{print $1}')
+          else
+            SHA=$(shasum -a 256 "${{ matrix.artifact_name }}" | awk '{print $1}')
+          fi
+          echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
+          echo "$SHA  ${{ matrix.artifact_name }}" >> sha256sums.txt
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: |
+            ${{ matrix.artifact_name }}
+            sha256sums.txt
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          merge-multiple: true
+
+      - name: Combine sha256sums
+        run: |
+          cat artifacts/sha256sums.txt | sort -u > sha256sums.txt
+          cat sha256sums.txt
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: blvm-miniscript ${{ github.ref_name }}
+          body: |
+            ## blvm-miniscript ${{ github.ref_name }}
+
+            Hot-loadable BLVM module providing `getdescriptorinfo` and `analyzepsbt` RPC methods.
+
+            ### Install
+
+            ```sh
+            # Via blvm-node marketplace (recommended):
+            blvm-cli loadmodule blvm-miniscript
+
+            # Manual:
+            mkdir -p modules/blvm-miniscript
+            curl -L <binary_url> -o modules/blvm-miniscript/blvm-miniscript
+            chmod +x modules/blvm-miniscript/blvm-miniscript
+            curl -L https://raw.githubusercontent.com/BTCDecoded/blvm-miniscript/main/module.toml \
+                 -o modules/blvm-miniscript/module.toml
+            ```
+
+            ### Checksums
+
+            See `sha256sums.txt` attached to this release.
+          files: |
+            artifacts/blvm-miniscript-x86_64-linux
+            artifacts/blvm-miniscript-aarch64-linux
+            artifacts/blvm-miniscript-x86_64-macos
+            artifacts/blvm-miniscript-aarch64-macos
+            sha256sums.txt
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+
+  update-registry:
+    name: Update blvm registry/modules.json
+    needs: release
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout blvm repo
+        uses: actions/checkout@v4
+        with:
+          repository: BTCDecoded/blvm
+          token: ${{ secrets.REGISTRY_UPDATE_TOKEN }}
+          path: blvm-repo
+
+      - name: Download sha256sums
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          merge-multiple: true
+
+      - name: Patch registry/modules.json
+        run: |
+          VERSION="${{ github.ref_name }}"
+          SUMS_FILE="artifacts/sha256sums.txt"
+          REGISTRY="blvm-repo/registry/modules.json"
+
+          get_sha() {
+            grep "$1" "$SUMS_FILE" | awk '{print $1}'
+          }
+
+          python3 - <<'EOF'
+          import json, os, sys
+
+          version = os.environ["VERSION"]
+          registry_path = os.environ["REGISTRY"]
+          sums_file = os.environ["SUMS_FILE"]
+
+          # Build sha map
+          sha_map = {}
+          with open(sums_file) as f:
+              for line in f:
+                  parts = line.strip().split()
+                  if len(parts) == 2:
+                      sha_map[parts[1]] = parts[0]
+
+          with open(registry_path) as f:
+              entries = json.load(f)
+
+          for entry in entries:
+              if entry["name"] != "blvm-miniscript":
+                  continue
+              entry["version"] = version
+              for platform, info in entry["binaries"].items():
+                  artifact = info["url"].split("/")[-1]
+                  if artifact in sha_map:
+                      info["sha256"] = sha_map[artifact]
+                  # Update URL to point to exact version tag (not latest)
+                  info["url"] = info["url"].replace("/latest/download/", f"/download/{version}/")
+
+          with open(registry_path, "w") as f:
+              json.dump(entries, f, indent=2)
+          EOF
+        env:
+          VERSION: ${{ github.ref_name }}
+          REGISTRY: blvm-repo/registry/modules.json
+          SUMS_FILE: artifacts/sha256sums.txt
+
+      - name: Commit and push
+        run: |
+          cd blvm-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add registry/modules.json
+          git diff --staged --quiet || git commit -m "chore: update blvm-miniscript to ${{ github.ref_name }} in registry"
+          git push

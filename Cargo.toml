@@ -1,0 +1,71 @@
+[package]
+name = "blvm-miniscript"
+version = "0.1.0"
+edition = "2021"
+authors = ["Bitcoin Commons Team"]
+description = "Miniscript descriptor and PSBT analysis module for blvm-node (getdescriptorinfo, analyzepsbt)"
+license = "MIT"
+repository = "https://github.com/BTCDecoded/blvm-miniscript"
+homepage = "https://btcdecoded.org"
+keywords = ["bitcoin", "miniscript", "descriptor", "psbt", "module"]
+categories = ["cryptography::cryptocurrencies"]
+
+[[bin]]
+name = "blvm-miniscript"
+path = "src/main.rs"
+
+[dependencies]
+# blvm-node for module system integration
+blvm-node = ">=0.1, <1"
+
+# Async runtime
+tokio = { version = "1.48", features = ["full"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Miniscript + transitive bitcoin (deliberately isolated to this crate)
+miniscript = { version = "=13.0.0", features = ["compiler"] }
+
+# PSBT base64 decode
+base64 = "=0.22"
+
+# Bech32 for descriptor checksum
+bech32 = "=0.9"
+
+# SHA256 fallback for checksum
+sha2 = "=0.10.9"
+hex = "=0.4.3"
+
+# Regex for range descriptor detection
+regex = "1.10"
+
+# blvm-sdk for ModuleBootstrap + run_module! macro
+blvm-sdk = { version = ">=0.1, <1", default-features = false, features = ["node"] }
+# blvm-sdk-macros for #[rpc_methods] and #[command]
+blvm-sdk-macros = { version = ">=0.1, <1" }
+
+# Async trait support
+async-trait = "0.1"
+
+# Local monorepo: sibling paths override the version pins above.
+# Strip this section (BTCDecoded/rust-ci/strip-patch-crates-io@main) before publishing to crates.io or in CI.
+[patch.crates-io]
+blvm-node = { path = "../blvm-node" }
+blvm-sdk = { path = "../blvm-sdk" }
+blvm-sdk-macros = { path = "../blvm-sdk/crates/blvm-sdk-macros" }
+blvm-secp256k1 = { path = "../blvm-secp256k1" }
+blvm-protocol = { path = "../blvm-protocol" }
+blvm-consensus = { path = "../blvm-consensus" }
+blvm-primitives = { path = "../blvm-primitives" }
+blvm-muhash = { path = "../blvm-muhash" }
+blvm-spec-lock = { path = "../blvm-spec-lock" }

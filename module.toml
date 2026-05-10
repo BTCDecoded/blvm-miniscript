@@ -1,0 +1,21 @@
+name = "blvm-miniscript"
+version = "0.1.0"
+entry_point = "blvm-miniscript"
+
+description = "Miniscript descriptor and PSBT analysis (getdescriptorinfo, analyzepsbt)"
+author = "Bitcoin Commons Team"
+
+# register_rpc_endpoint permission is required to override core RPC methods.
+capabilities = [
+    "register_rpc_endpoint",
+]
+
+# Declares intent to override these core RPC method names.
+# Validated against OVERRIDABLE_CORE_RPC_METHODS at load time.
+rpc_overrides = [
+    "getdescriptorinfo",
+    "analyzepsbt",
+]
+
+[config_schema]
+log_level = "Logging level: trace, debug, info, warn, error (default: info)"
