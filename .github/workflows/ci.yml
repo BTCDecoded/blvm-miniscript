@@ -234,28 +234,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Strip [patch.crates-io] for crates.io-only CI
-        uses: BTCDecoded/rust-ci/strip-patch-crates-io@main
-
-      - name: Install system deps
-        run: |
-          if command -v apt-get >/dev/null 2>&1; then
-            sudo apt-get update -qq && sudo apt-get install -y -qq pkg-config libssl-dev
-          elif command -v pacman >/dev/null 2>&1; then
-            pacman -Qq openssl pkgconf >/dev/null 2>&1 || sudo pacman -Sy --noconfirm openssl pkgconf
-          fi
-
-      - name: Install Rust
-        uses: BTCDecoded/rust-ci/install-rust-toolchain@main
-
-      - name: Determine version
-        id: version
+      - name: Determine next version and push tag
+        # Pushing a v* tag triggers release.yml which builds all platforms
+        # (x86_64-linux, aarch64-linux, x86_64-macos, aarch64-macos) on
+        # GitHub-hosted runners and creates the GitHub Release + updates registry.
         run: |
           CURRENT=$(grep -A 5 '^\[package\]' Cargo.toml | grep '^version = ' | head -1 | sed -E 's/^version = "([^"]+)".*/\1/')
           MAJOR=$(echo "$CURRENT" | cut -d. -f1)
           MINOR=$(echo "$CURRENT" | cut -d. -f2)
           PATCH=$(echo "$CURRENT" | cut -d. -f3)
-          CRATE_NAME=$(grep -A 5 '^\[package\]' Cargo.toml | grep '^name = ' | head -1 | sed -E 's/^name = "([^"]+)".*/\1/')
           EXISTING_TAGS=$(git tag -l "v*" | sed 's/^v//' || true)
           PATCH=$((PATCH + 1))
           for i in $(seq 0 20); do
@@ -266,97 +253,13 @@ jobs:
               break
             fi
           done
-          echo "version=${MAJOR}.${MINOR}.${PATCH}" >> $GITHUB_OUTPUT
-          echo "version_tag=v${MAJOR}.${MINOR}.${PATCH}" >> $GITHUB_OUTPUT
-          echo "crate_name=${CRATE_NAME}" >> $GITHUB_OUTPUT
-          echo "✅ Releasing ${CRATE_NAME} v${MAJOR}.${MINOR}.${PATCH}"
-
-      - name: Build release binary
-        id: build
-        env:
-          CARGO_INCREMENTAL: '0'
-          RUSTFLAGS: '-C debuginfo=0'
-        run: |
-          cargo build --release
-          ARTIFACT="${{ steps.version.outputs.crate_name }}-x86_64-linux"
-          cp "target/release/${{ steps.version.outputs.crate_name }}" "$ARTIFACT"
-          if command -v sha256sum &>/dev/null; then
-            SHA=$(sha256sum "$ARTIFACT" | awk '{print $1}')
-          else
-            SHA=$(shasum -a 256 "$ARTIFACT" | awk '{print $1}')
-          fi
-          echo "$SHA  $ARTIFACT" > sha256sums.txt
-          echo "sha256=${SHA}" >> $GITHUB_OUTPUT
-          echo "artifact=${ARTIFACT}" >> $GITHUB_OUTPUT
-
-      - name: Create git tag
-        run: |
-          VERSION_TAG="${{ steps.version.outputs.version_tag }}"
+          VERSION_TAG="v${MAJOR}.${MINOR}.${PATCH}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           if git rev-parse "$VERSION_TAG" >/dev/null 2>&1; then
-            echo "⚠️  Tag ${VERSION_TAG} already exists, skipping"
+            echo "⚠️  Tag ${VERSION_TAG} already exists — release.yml already ran or is running"
           else
             git tag -a "$VERSION_TAG" -m "Release ${VERSION_TAG}"
             git push origin "$VERSION_TAG"
-            echo "✅ Tagged ${VERSION_TAG}"
+            echo "✅ Pushed tag ${VERSION_TAG} — release.yml will build all platforms"
           fi
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.version_tag }}
-          name: ${{ steps.version.outputs.crate_name }} ${{ steps.version.outputs.version_tag }}
-          body: |
-            ## ${{ steps.version.outputs.crate_name }} ${{ steps.version.outputs.version_tag }}
-
-            Hot-loadable BLVM module. Install via:
-            ```sh
-            blvm-cli loadmodule ${{ steps.version.outputs.crate_name }}
-            ```
-            See `sha256sums.txt` for checksums.
-          files: |
-            ${{ steps.build.outputs.artifact }}
-            sha256sums.txt
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Update blvm registry/modules.json
-        env:
-          REGISTRY_UPDATE_TOKEN: ${{ secrets.REGISTRY_UPDATE_TOKEN }}
-          VERSION_TAG: ${{ steps.version.outputs.version_tag }}
-          CRATE_NAME: ${{ steps.version.outputs.crate_name }}
-          SHA: ${{ steps.build.outputs.sha256 }}
-        run: |
-          [ -z "${REGISTRY_UPDATE_TOKEN:-}" ] && echo "⚠️  REGISTRY_UPDATE_TOKEN not set, skipping registry update" && exit 0
-          git clone "https://x-access-token:${REGISTRY_UPDATE_TOKEN}@github.com/BTCDecoded/blvm.git" blvm-repo
-          python3 - <<EOF
-          import json, os, re
-          path = "blvm-repo/registry/modules.json"
-          tag = os.environ["VERSION_TAG"]
-          name = os.environ["CRATE_NAME"]
-          sha = os.environ["SHA"]
-          with open(path) as f:
-              entries = json.load(f)
-          for entry in entries:
-              if entry["name"] != name:
-                  continue
-              entry["version"] = tag
-              for platform, info in entry["binaries"].items():
-                  artifact = info["url"].split("/")[-1]
-                  info["url"] = re.sub(r"/(?:latest/download|download/[^/]+)/", f"/download/{tag}/", info["url"])
-                  if "x86_64-linux" in artifact:
-                      info["sha256"] = sha
-              break
-          with open(path, "w") as f:
-              json.dump(entries, f, indent=2)
-              f.write("\n")
-          EOF
-          cd blvm-repo
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add registry/modules.json
-          git diff --staged --quiet || git commit -m "chore: update ${CRATE_NAME} to ${VERSION_TAG} in registry"
-          git push

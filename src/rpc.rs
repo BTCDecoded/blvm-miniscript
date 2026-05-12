@@ -5,7 +5,7 @@
 //! `blvm-node/src/miniscript.rs` and `blvm-node/src/rpc/miniscript.rs`.
 
 use miniscript::bitcoin;
-use miniscript::{Descriptor, Miniscript, Segwitv0};
+use miniscript::{Descriptor, DescriptorPublicKey, Miniscript, Segwitv0};
 use serde_json::{json, Value};
 use std::str::FromStr;
 
@@ -102,13 +102,25 @@ pub fn get_descriptor_info(params: &Value) -> Value {
         }
     };
 
-    match Descriptor::<bitcoin::PublicKey>::from_str(descriptor_str) {
+    match Descriptor::<DescriptorPublicKey>::from_str(descriptor_str) {
         Ok(descriptor) => {
-            let script_bytes: Vec<u8> = descriptor.script_pubkey().into();
-            let (is_ms, _sat_weight) = is_miniscript_script(&script_bytes);
-            let stype = script_type(&script_bytes);
             let checksum = descriptor_checksum(descriptor_str);
             let is_range = is_range_descriptor(descriptor_str);
+            // For range descriptors we can't derive a single script_pubkey without an index.
+            // Use index 0 for analysis; for non-range descriptors at_derivation_index is a no-op.
+            let concrete = if is_range {
+                descriptor.at_derivation_index(0).ok()
+            } else {
+                descriptor.at_derivation_index(0).ok()
+            };
+            let (is_ms, stype) = match concrete {
+                Some(ref d) => {
+                    let script_bytes: Vec<u8> = d.script_pubkey().into();
+                    let (ms, _) = is_miniscript_script(&script_bytes);
+                    (ms, script_type(&script_bytes))
+                }
+                None => (true, "unknown"),
+            };
 
             json!({
                 "descriptor": descriptor_str,
