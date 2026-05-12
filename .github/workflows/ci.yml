@@ -24,7 +24,7 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: '1'
   CARGO_INCREMENTAL: '0'
-  BLVM_BUILD_TARGET: /tmp/gh-blvm-miniscript-build/${{ github.run_id }}/target
+  BLVM_BUILD_TARGET: ${{ github.workspace }}/.build/gh-blvm-miniscript-build/${{ github.run_id }}/target
 
 jobs:
   setup:
@@ -40,8 +40,8 @@ jobs:
     steps:
       - name: Pre-flight disk cleanup
         run: |
-          if [ -d /tmp/gh-blvm-miniscript-build ]; then
-            find /tmp/gh-blvm-miniscript-build -mindepth 1 -maxdepth 1 -type d \
+          if [ -d "${{ github.workspace }}/.build/gh-blvm-miniscript-build" ]; then
+            find "${{ github.workspace }}/.build/gh-blvm-miniscript-build" -mindepth 1 -maxdepth 1 -type d \
               -not -name "${{ github.run_id }}" -mmin +60 \
               -exec rm -rf {} + 2>/dev/null || true
           fi
@@ -54,7 +54,7 @@ jobs:
       - name: Cache key
         id: setup-cache
         run: |
-          CACHE_ROOT="/tmp/runner-cache"
+          CACHE_ROOT="${{ github.workspace }}/.build/runner-cache"
           DEPS_KEY=$(sha256sum Cargo.toml | cut -d' ' -f1)
           CACHE_KEY="${DEPS_KEY}"
           echo "cache-key=$CACHE_KEY" >> $GITHUB_OUTPUT
