@@ -222,13 +222,15 @@ mod tests {
 
     #[test]
     fn test_get_descriptor_info_valid() {
+        // secp256k1 generator point G (compressed, 66 hex chars = 33 bytes)
         let params = serde_json::json!([
-            "pk(02c6047f9441ed7d6d3045406e95c07cd85c778e4b8a8f3af4eb0c8666e7c1914)"
+            "pk(0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798)"
         ]);
         let result = get_descriptor_info(&params);
         assert!(
             result.get("error").is_none(),
-            "should not error on valid pk descriptor"
+            "should not error on valid pk descriptor, got: {:?}",
+            result.get("error")
         );
         assert_eq!(result["hasprivatekeys"], false);
     }
@@ -244,7 +246,7 @@ mod tests {
     fn test_range_descriptor_detection() {
         assert!(is_range_descriptor("pkh(xpub.../0/*)"));
         assert!(!is_range_descriptor(
-            "pk(02c6047f9441ed7d6d3045406e95c07cd85c778e4b8a8f3af4eb0c8666e7c1914)"
+            "pk(0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798)"
         ));
     }
 }
