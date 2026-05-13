@@ -255,6 +255,18 @@ jobs:
           echo "version_tag=v${MAJOR}.${MINOR}.${PATCH}" >> $GITHUB_OUTPUT
           echo "✅ Next version: v${MAJOR}.${MINOR}.${PATCH}"
 
+      - name: Strip [patch.crates-io] path overrides
+        run: |
+          python3 -c "
+          import re, pathlib
+          p = pathlib.Path('Cargo.toml')
+          text = p.read_text()
+          text = re.sub(r'\n\[patch\.crates-io\].*', '', text, flags=re.DOTALL)
+          p.write_text(text)
+          print('Stripped [patch.crates-io] — using crates.io versions')
+          "
+          cargo generate-lockfile
+
       - name: Build release binary
         env:
           CARGO_TARGET_DIR: ${{ env.BLVM_BUILD_TARGET }}
