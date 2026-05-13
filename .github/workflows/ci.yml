@@ -235,9 +235,12 @@ jobs:
           fetch-depth: 0
 
       - name: Determine next version and push tag
-        # Pushing a v* tag triggers release.yml which builds all platforms
-        # (x86_64-linux, aarch64-linux, x86_64-macos, aarch64-macos) on
-        # GitHub-hosted runners and creates the GitHub Release + updates registry.
+        # Pushing a v* tag triggers release.yml which builds all platforms.
+        # IMPORTANT: must use a PAT (REGISTRY_UPDATE_TOKEN), not GITHUB_TOKEN —
+        # GitHub Actions silently ignores tag pushes made with GITHUB_TOKEN and
+        # will not trigger release.yml.
+        env:
+          PAT: ${{ secrets.REGISTRY_UPDATE_TOKEN }}
         run: |
           CURRENT=$(grep -A 5 '^\[package\]' Cargo.toml | grep '^version = ' | head -1 | sed -E 's/^version = "([^"]+)".*/\1/')
           MAJOR=$(echo "$CURRENT" | cut -d. -f1)
@@ -256,6 +259,8 @@ jobs:
           VERSION_TAG="v${MAJOR}.${MINOR}.${PATCH}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # Use PAT so the push triggers release.yml (GITHUB_TOKEN pushes are ignored)
+          git remote set-url origin "https://x-access-token:${PAT}@github.com/BTCDecoded/blvm-miniscript.git"
           if git rev-parse "$VERSION_TAG" >/dev/null 2>&1; then
             echo "⚠️  Tag ${VERSION_TAG} already exists — release.yml already ran or is running"
           else

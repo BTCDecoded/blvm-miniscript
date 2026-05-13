@@ -4,6 +4,11 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v0.1.1)"
+        required: true
 
 permissions:
   contents: write
@@ -95,8 +100,8 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: blvm-miniscript ${{ github.ref_name }}
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: blvm-miniscript ${{ github.event.inputs.tag || github.ref_name }}
           body: |
             ## blvm-miniscript ${{ github.ref_name }}
 
@@ -149,7 +154,7 @@ jobs:
 
       - name: Patch registry/modules.json
         run: |
-          VERSION="${{ github.ref_name }}"
+          VERSION="${{ github.event.inputs.tag || github.ref_name }}"
           SUMS_FILE="artifacts/sha256sums.txt"
           REGISTRY="blvm-repo/registry/modules.json"
 
