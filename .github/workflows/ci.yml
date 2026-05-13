@@ -43,7 +43,9 @@ jobs:
           p.write_text(text)
           print("Stripped [patch.crates-io] — using crates.io versions")
           EOF
-          cargo generate-lockfile
+          # Delete stale lockfile so cargo resolves fresh from the crates.io index
+          rm -f Cargo.lock
+          cargo update
 
       - name: Build
         run: |

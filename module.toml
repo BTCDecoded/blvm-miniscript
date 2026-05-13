@@ -26,5 +26,6 @@ log_level = "Logging level: trace, debug, info, warn, error (default: info)"
 # binary URLs from the central registry. SHA-256 is verified before execution.
 # ---------------------------------------------------------------------------
 [downloads]
-x86_64-linux  = { url = "", sha256 = "" }
-aarch64-linux = { url = "", sha256 = "" }
+x86_64-linux   = { url = "", sha256 = "" }
+aarch64-linux  = { url = "", sha256 = "" }
+x86_64-windows = { url = "", sha256 = "" }
