@@ -1,5 +1,4 @@
 name: CI
-# chore: bump commit to re-run CI after blvm-sdk crates.io release
 
 on:
   push:
@@ -9,46 +8,107 @@ on:
 
 permissions:
   contents: read
+  actions: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+  CARGO_INCREMENTAL: "1"
 
 jobs:
+  setup:
+    name: Setup
+    runs-on: [self-hosted, Linux, X64, builds]
+    if: |
+      (github.event_name != 'push' || github.event.head_commit == null ||
+       (!contains(github.event.head_commit.message, '[skip ci]') &&
+        !contains(github.event.head_commit.message, '[ci skip]') &&
+        !contains(github.event.head_commit.message, '[no ci]')))
+    outputs:
+      cache-key: ${{ steps.cache.outputs.cache-key }}
+    steps:
+      - name: Disk check
+        uses: BTCDecoded/rust-ci/runner-disk-guard@main
+
+      - uses: actions/checkout@v4
+
+      - name: Strip [patch.crates-io] for crates.io-only CI
+        uses: BTCDecoded/rust-ci/strip-patch-crates-io@main
+
+      - id: cache
+        name: Cache key
+        run: |
+          DEPS_KEY=$(sha256sum Cargo.toml | cut -d' ' -f1)
+          TOOLCHAIN=$(grep -E '^channel|rust-version' rust-toolchain.toml Cargo.toml 2>/dev/null | head -1 | sha256sum | cut -d' ' -f1 || echo "stable")
+          CACHE_KEY="${DEPS_KEY}-${TOOLCHAIN}"
+          echo "cache-key=$CACHE_KEY" >> "$GITHUB_OUTPUT"
+          CACHE_ROOT="/tmp/runner-cache"
+          mkdir -p "$CACHE_ROOT/cargo/$CACHE_KEY"/{registry,git} "$CACHE_ROOT/target/$CACHE_KEY"
+
   build:
     name: Build ${{ matrix.target }}
-    runs-on: ${{ matrix.os }}
+    needs: setup
+    runs-on: ${{ matrix.runs_on }}
+    if: |
+      (github.event_name != 'push' || github.event.head_commit == null ||
+       (!contains(github.event.head_commit.message, '[skip ci]') &&
+        !contains(github.event.head_commit.message, '[ci skip]') &&
+        !contains(github.event.head_commit.message, '[no ci]')))
     strategy:
       fail-fast: false
       matrix:
         include:
           - target: x86_64-unknown-linux-gnu
-            os: ubuntu-22.04
+            runs_on: [self-hosted, Linux, X64, builds]
+            use_cross: false
           - target: aarch64-unknown-linux-gnu
-            os: ubuntu-22.04
+            runs_on: [self-hosted, Linux, X64, builds]
             use_cross: true
           - target: x86_64-pc-windows-msvc
-            os: windows-2022
+            runs_on: windows-2022
+            use_cross: false
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
+      - name: Strip [patch.crates-io] for crates.io-only CI
+        uses: BTCDecoded/rust-ci/strip-patch-crates-io@main
+
+      - name: Cache bind env (Linux self-hosted)
+        if: runner.os == 'Linux'
+        uses: BTCDecoded/rust-ci/runner-cargo-cache@main
+        with:
+          operation: bind-env
+          cache-key: ${{ needs.setup.outputs.cache-key }}-${{ matrix.target }}
+
+      - name: Restore Cargo cache (Linux self-hosted)
+        if: runner.os == 'Linux'
+        uses: BTCDecoded/rust-ci/runner-cargo-cache@main
+        with:
+          operation: restore
+
+      - name: Install Rust (Linux self-hosted)
+        if: runner.os == 'Linux'
+        uses: BTCDecoded/rust-ci/install-rust-toolchain@main
+
+      - name: Install Rust (Windows)
+        if: runner.os == 'Windows'
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install cross (for cross-compilation)
+      - name: Add Rust target (pinned toolchain)
+        if: runner.os == 'Linux'
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Regenerate lockfile for crates.io graph
+        run: |
+          rm -f Cargo.lock
+          cargo generate-lockfile
+
+      - name: Install cross (aarch64 Linux)
         if: matrix.use_cross
         run: cargo install cross --locked
-
-      - name: Strip [patch.crates-io] path overrides
-        shell: python3 {0}
-        run: |
-          import re, pathlib, subprocess
-          p = pathlib.Path("Cargo.toml")
-          text = p.read_text()
-          text = re.sub(r'\n\[patch\.crates-io\].*', '', text, flags=re.DOTALL)
-          p.write_text(text)
-          print("Stripped [patch.crates-io] — using crates.io versions")
-          pathlib.Path("Cargo.lock").unlink(missing_ok=True)
-          subprocess.run(["cargo", "update"], check=True)
 
       - name: Build
         shell: bash
@@ -58,5 +118,15 @@ jobs:
           else
             cargo build --release --target ${{ matrix.target }}
           fi
-        env:
-          CARGO_INCREMENTAL: "0"
+
+      - name: Save Cargo cache (Linux self-hosted)
+        if: always() && runner.os == 'Linux'
+        uses: BTCDecoded/rust-ci/runner-cargo-cache@main
+        with:
+          operation: save
+
+      - name: Prune old runner caches (Linux self-hosted)
+        if: always() && runner.os == 'Linux'
+        uses: BTCDecoded/rust-ci/runner-cargo-cache@main
+        with:
+          operation: prune
