@@ -60,7 +60,7 @@ jobs:
       - name: Determine release version
         id: plan
         env:
-          OVERRIDE_RAW: ${{ github.event.inputs.version_override || '' }}
+          OVERRIDE_RAW: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version_override || '' }}
         run: |
           set -euo pipefail
           pkg_version() {

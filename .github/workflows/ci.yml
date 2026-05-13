@@ -1,4 +1,5 @@
 name: CI
+# chore: bump commit to re-run CI after blvm-sdk crates.io release
 
 on:
   push:
