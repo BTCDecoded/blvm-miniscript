@@ -1,14 +1,22 @@
 name: Release
 
+# Pushing a version tag alone only creates a Git tag in GitHub; this workflow
+# must run to build binaries and create the GitHub *Release* with assets.
 on:
   workflow_dispatch:
     inputs:
       tag:
         description: "Tag to release (e.g. v0.1.1)"
         required: true
+  push:
+    tags:
+      - "v*"
 
 permissions:
   contents: write
+
+env:
+  RELEASE_VERSION: ${{ github.event.inputs.tag || github.ref_name }}
 
 jobs:
   build:
@@ -113,13 +121,20 @@ jobs:
           cat artifacts/sha256sums.txt | sort -u > sha256sums.txt
           cat sha256sums.txt
 
+      - name: List artifacts (sanity check)
+        run: ls -la artifacts/
+
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
-          name: blvm-miniscript ${{ github.event.inputs.tag || github.ref_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: ${{ env.RELEASE_VERSION }}
+          name: blvm-miniscript ${{ env.RELEASE_VERSION }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          fail_on_unmatched_files: true
           body: |
-            ## blvm-miniscript ${{ github.ref_name }}
+            ## blvm-miniscript ${{ env.RELEASE_VERSION }}
 
             Hot-loadable BLVM module providing `getdescriptorinfo` and `analyzepsbt` RPC methods.
 
@@ -146,7 +161,7 @@ jobs:
             artifacts/blvm-miniscript-x86_64-windows.exe
             sha256sums.txt
           draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}
+          prerelease: ${{ contains(env.RELEASE_VERSION, '-') }}
 
   update-module-toml:
     name: Update module.toml with version and download hashes
@@ -170,7 +185,7 @@ jobs:
 
       - name: Patch module.toml
         env:
-          VERSION: ${{ github.event.inputs.tag || github.ref_name }}
+          VERSION: ${{ env.RELEASE_VERSION }}
         run: |
           BASE_URL="https://github.com/BTCDecoded/blvm-miniscript/releases/download/${VERSION}"
 
@@ -228,5 +243,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add module.toml
           git diff --staged --quiet && echo "No changes to module.toml" && exit 0
-          git commit -m "chore: update downloads for ${{ github.event.inputs.tag || github.ref_name }} [skip ci]"
+          git commit -m "chore: update downloads for ${{ env.RELEASE_VERSION }} [skip ci]"
           git push origin main
