@@ -47,6 +47,18 @@ jobs:
         if: matrix.use_cross
         run: cargo install cross --locked
 
+      - name: Strip [patch.crates-io] path overrides
+        run: |
+          python3 - <<'EOF'
+          import re, pathlib
+          p = pathlib.Path("Cargo.toml")
+          text = p.read_text()
+          text = re.sub(r'\n\[patch\.crates-io\].*', '', text, flags=re.DOTALL)
+          p.write_text(text)
+          print("Stripped [patch.crates-io] — using crates.io versions")
+          EOF
+          cargo generate-lockfile
+
       - name: Build release binary
         run: |
           if [ "${{ matrix.use_cross }}" = "true" ]; then
