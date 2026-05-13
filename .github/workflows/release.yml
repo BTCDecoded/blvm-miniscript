@@ -1,9 +1,6 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       tag:
@@ -145,77 +142,90 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref_name, '-') }}
 
-  update-registry:
-    name: Update blvm registry/modules.json
+  update-module-toml:
+    name: Update module.toml with version and download hashes
     needs: release
     runs-on: ubuntu-22.04
+    # Uses only GITHUB_TOKEN — no cross-repo secret required.
+    permissions:
+      contents: write
 
     steps:
-      - name: Checkout blvm repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          repository: BTCDecoded/blvm
-          token: ${{ secrets.REGISTRY_UPDATE_TOKEN }}
-          path: blvm-repo
+          ref: main
+          fetch-depth: 0
 
-      - name: Download sha256sums
+      - name: Download sha256sums from build artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts/
           merge-multiple: true
 
-      - name: Patch registry/modules.json
+      - name: Patch module.toml
+        env:
+          VERSION: ${{ github.event.inputs.tag || github.ref_name }}
         run: |
-          VERSION="${{ github.event.inputs.tag || github.ref_name }}"
-          SUMS_FILE="artifacts/sha256sums.txt"
-          REGISTRY="blvm-repo/registry/modules.json"
+          BASE_URL="https://github.com/BTCDecoded/blvm-miniscript/releases/download/${VERSION}"
 
-          get_sha() {
-            grep "$1" "$SUMS_FILE" | awk '{print $1}'
+          # Artifact names produced by the build matrix
+          SHA_X86_LINUX=$(grep   "blvm-miniscript-x86_64-linux$"   artifacts/sha256sums.txt | awk '{print $1}')
+          SHA_AARCH64_LINUX=$(grep "blvm-miniscript-aarch64-linux$" artifacts/sha256sums.txt | awk '{print $1}')
+          SHA_X86_MACOS=$(grep   "blvm-miniscript-x86_64-macos$"   artifacts/sha256sums.txt | awk '{print $1}')
+          SHA_AARCH64_MACOS=$(grep "blvm-miniscript-aarch64-macos$" artifacts/sha256sums.txt | awk '{print $1}')
+
+          VERSION="$VERSION" \
+          BASE_URL="$BASE_URL" \
+          SHA_X86_LINUX="$SHA_X86_LINUX" \
+          SHA_AARCH64_LINUX="$SHA_AARCH64_LINUX" \
+          SHA_X86_MACOS="$SHA_X86_MACOS" \
+          SHA_AARCH64_MACOS="$SHA_AARCH64_MACOS" \
+          python3 - <<'PYEOF'
+          import re, pathlib, os
+
+          version  = os.environ["VERSION"]
+          base_url = os.environ["BASE_URL"]
+
+          # Map TOML platform key → (artifact suffix, sha env var)
+          platforms = {
+              "x86_64-linux":  ("blvm-miniscript-x86_64-linux",   os.environ["SHA_X86_LINUX"]),
+              "aarch64-linux": ("blvm-miniscript-aarch64-linux",  os.environ["SHA_AARCH64_LINUX"]),
+              "x86_64-apple":  ("blvm-miniscript-x86_64-macos",   os.environ["SHA_X86_MACOS"]),
+              "aarch64-apple": ("blvm-miniscript-aarch64-macos",  os.environ["SHA_AARCH64_MACOS"]),
           }
 
-          python3 - <<'EOF'
-          import json, os, sys
+          p = pathlib.Path("module.toml")
+          text = p.read_text()
 
-          version = os.environ["VERSION"]
-          registry_path = os.environ["REGISTRY"]
-          sums_file = os.environ["SUMS_FILE"]
+          # Update top-level version field
+          text = re.sub(
+              r'^(version\s*=\s*)"[^"]*"',
+              rf'\g<1>"{version}"',
+              text, flags=re.MULTILINE
+          )
 
-          # Build sha map
-          sha_map = {}
-          with open(sums_file) as f:
-              for line in f:
-                  parts = line.strip().split()
-                  if len(parts) == 2:
-                      sha_map[parts[1]] = parts[0]
+          # Rebuild [downloads] section
+          lines = ["\n[downloads]"]
+          for key, (artifact, sha) in platforms.items():
+              url = f"{base_url}/{artifact}"
+              lines.append(f'{key:<14}= {{ url = "{url}", sha256 = "{sha}" }}')
+          new_downloads = "\n".join(lines) + "\n"
 
-          with open(registry_path) as f:
-              entries = json.load(f)
+          if "[downloads]" in text:
+              # Replace everything from [downloads] to end-of-file
+              text = re.sub(r'\n\[downloads\].*', new_downloads, text, flags=re.DOTALL)
+          else:
+              text = text.rstrip("\n") + new_downloads
 
-          for entry in entries:
-              if entry["name"] != "blvm-miniscript":
-                  continue
-              entry["version"] = version
-              for platform, info in entry["binaries"].items():
-                  artifact = info["url"].split("/")[-1]
-                  if artifact in sha_map:
-                      info["sha256"] = sha_map[artifact]
-                  # Update URL to point to exact version tag (not latest)
-                  info["url"] = info["url"].replace("/latest/download/", f"/download/{version}/")
+          p.write_text(text)
+          print(f"module.toml updated: version={version}")
+          PYEOF
 
-          with open(registry_path, "w") as f:
-              json.dump(entries, f, indent=2)
-          EOF
-        env:
-          VERSION: ${{ github.ref_name }}
-          REGISTRY: blvm-repo/registry/modules.json
-          SUMS_FILE: artifacts/sha256sums.txt
-
-      - name: Commit and push
+      - name: Commit and push module.toml
         run: |
-          cd blvm-repo
-          git config user.name "github-actions[bot]"
+          git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add registry/modules.json
-          git diff --staged --quiet || git commit -m "chore: update blvm-miniscript to ${{ github.ref_name }} in registry"
-          git push
+          git add module.toml
+          git diff --staged --quiet && echo "No changes to module.toml" && exit 0
+          git commit -m "chore: update downloads for ${{ github.event.inputs.tag || github.ref_name }} [skip ci]"
+          git push origin main
