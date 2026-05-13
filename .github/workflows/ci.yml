@@ -74,6 +74,12 @@ jobs:
       - name: Strip [patch.crates-io] for crates.io-only CI
         uses: BTCDecoded/rust-ci/strip-patch-crates-io@main
 
+      - name: Job-local HOME (Linux; avoid rustc ETXTBSY on shared rustup installs)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p "${RUNNER_TEMP}/blvm-miniscript-ci-home"
+          echo "HOME=${RUNNER_TEMP}/blvm-miniscript-ci-home" >> "$GITHUB_ENV"
+
       - name: Cache bind env (Linux self-hosted)
         if: runner.os == 'Linux'
         uses: BTCDecoded/rust-ci/runner-cargo-cache@main
@@ -102,6 +108,7 @@ jobs:
         run: rustup target add ${{ matrix.target }}
 
       - name: Regenerate lockfile for crates.io graph
+        shell: bash
         run: |
           rm -f Cargo.lock
           cargo generate-lockfile
