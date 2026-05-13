@@ -99,7 +99,7 @@ async fn main() -> Result<()> {
                 match node_api
                     .register_core_rpc_override(
                         method.to_string(),
-                        format!("Miniscript implementation of {}", method),
+                        format!("Miniscript implementation of {method}"),
                     )
                     .await
                 {

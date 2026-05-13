@@ -106,13 +106,10 @@ pub fn get_descriptor_info(params: &Value) -> Value {
         Ok(descriptor) => {
             let checksum = descriptor_checksum(descriptor_str);
             let is_range = is_range_descriptor(descriptor_str);
-            // For range descriptors we can't derive a single script_pubkey without an index.
-            // Use index 0 for analysis; for non-range descriptors at_derivation_index is a no-op.
-            let concrete = if is_range {
-                descriptor.at_derivation_index(0).ok()
-            } else {
-                descriptor.at_derivation_index(0).ok()
-            };
+            // Use index 0 for analysis: ranged descriptors need *some* index to derive a
+            // concrete script_pubkey, and on non-range descriptors `at_derivation_index` is
+            // a no-op, so the same call works for both shapes.
+            let concrete = descriptor.at_derivation_index(0).ok();
             let (is_ms, stype) = match concrete {
                 Some(ref d) => {
                     let script_bytes: Vec<u8> = d.script_pubkey().into();
