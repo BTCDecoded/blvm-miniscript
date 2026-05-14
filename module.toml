@@ -1,5 +1,5 @@
 name = "blvm-miniscript"
-version = "0.1.5"
+version = "0.1.6"
 entry_point = "blvm-miniscript"
 
 description = "Miniscript descriptor and PSBT analysis (getdescriptorinfo, analyzepsbt)"
@@ -26,6 +26,6 @@ log_level = "Logging level: trace, debug, info, warn, error (default: info)"
 # binary URLs from the central registry. SHA-256 is verified before execution.
 # ---------------------------------------------------------------------------
 [downloads]
-x86_64-linux  = { url = "https://github.com/BTCDecoded/blvm-miniscript/releases/download/v0.1.5/blvm-miniscript-x86_64-linux", sha256 = "825a7a760f5682b79356d2ed71cb4334cbd806834f7ca4e15e452dcf20b735da" }
-aarch64-linux = { url = "https://github.com/BTCDecoded/blvm-miniscript/releases/download/v0.1.5/blvm-miniscript-aarch64-linux", sha256 = "ffbc18ae7312b7378dad41dd0db73921e02374e88d7952daca7fa088d3a5684c" }
-x86_64-windows= { url = "https://github.com/BTCDecoded/blvm-miniscript/releases/download/v0.1.5/blvm-miniscript-x86_64-windows.exe", sha256 = "457f028f94fb3606bb165f02c08430e4224d89162507ec5654f276f8acf40ac2" }
+x86_64-linux  = { url = "https://github.com/BTCDecoded/blvm-miniscript/releases/download/v0.1.6/blvm-miniscript-x86_64-linux", sha256 = "f2071990ea53550793ea35bf320fb7bd349ecc860d5e25a6c61df92d319977a4" }
+aarch64-linux = { url = "https://github.com/BTCDecoded/blvm-miniscript/releases/download/v0.1.6/blvm-miniscript-aarch64-linux", sha256 = "7260be701743b402e63db8dc650b03eeb493e07015084a96483f6f65d63f4234" }
+x86_64-windows= { url = "https://github.com/BTCDecoded/blvm-miniscript/releases/download/v0.1.6/blvm-miniscript-x86_64-windows.exe", sha256 = "c36485f5c8755bceb4528d97b4737669b02161c590e403e010a8e8d953d18909" }
