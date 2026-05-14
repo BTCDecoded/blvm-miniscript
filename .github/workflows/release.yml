@@ -15,6 +15,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: release-blvm-miniscript-${{ github.ref }}
@@ -142,24 +143,26 @@ jobs:
   build:
     name: Build ${{ matrix.target }}
     needs: prepare
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runs_on }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - target: x86_64-unknown-linux-gnu
-            os: ubuntu-22.04
+            runs_on: [self-hosted, Linux, X64, builds]
             artifact_name: blvm-miniscript-x86_64-linux
             binary_suffix: ""
+            use_cross: false
           - target: aarch64-unknown-linux-gnu
-            os: ubuntu-22.04
+            runs_on: [self-hosted, Linux, X64, builds]
             artifact_name: blvm-miniscript-aarch64-linux
             binary_suffix: ""
             use_cross: true
           - target: x86_64-pc-windows-msvc
-            os: windows-2022
+            runs_on: windows-2022
             artifact_name: blvm-miniscript-x86_64-windows.exe
             binary_suffix: ".exe"
+            use_cross: false
 
     steps:
       - uses: actions/checkout@v4
@@ -169,16 +172,61 @@ jobs:
         with:
           name: release-cargo-manifests
 
-      - name: Install Rust toolchain
+      - name: Strip [patch.crates-io] for crates.io-only build
+        uses: BTCDecoded/rust-ci/strip-patch-crates-io@main
+
+      - name: Job-local HOME (Linux; avoid rustc ETXTBSY on shared rustup)
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p "${RUNNER_TEMP}/blvm-miniscript-release-home"
+          echo "HOME=${RUNNER_TEMP}/blvm-miniscript-release-home" >> "$GITHUB_ENV"
+
+      - name: Runner cache key (Linux)
+        if: runner.os == 'Linux'
+        id: runner_cache
+        run: |
+          DEPS_KEY=$(sha256sum Cargo.toml | cut -d' ' -f1)
+          TOOLCHAIN=$(grep -E '^channel|rust-version' rust-toolchain.toml Cargo.toml 2>/dev/null | head -1 | sha256sum | cut -d' ' -f1 || echo "stable")
+          CACHE_KEY="${DEPS_KEY}-${TOOLCHAIN}"
+          echo "cache-key=${CACHE_KEY}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache bind env (Linux self-hosted)
+        if: runner.os == 'Linux'
+        uses: BTCDecoded/rust-ci/runner-cargo-cache@main
+        with:
+          operation: bind-env
+          cache-key: ${{ steps.runner_cache.outputs.cache-key }}-${{ matrix.target }}
+
+      - name: Restore Cargo cache (Linux self-hosted)
+        if: runner.os == 'Linux'
+        uses: BTCDecoded/rust-ci/runner-cargo-cache@main
+        with:
+          operation: restore
+
+      - name: Install Rust (Linux self-hosted)
+        if: runner.os == 'Linux'
+        uses: BTCDecoded/rust-ci/install-rust-toolchain@main
+
+      - name: Install Rust (Windows)
+        if: runner.os == 'Windows'
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install cross (for cross-compilation)
+      - name: Add Rust target (pinned toolchain, Linux)
+        if: runner.os == 'Linux'
+        run: rustup target add ${{ matrix.target }}
+
+      - name: MSVC environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install cross (aarch64 Linux)
         if: matrix.use_cross
         run: cargo install cross --locked
 
-      - name: Build release binary
+      - name: Build release binary (Linux)
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           if [ "${{ matrix.use_cross }}" = "true" ]; then
@@ -186,6 +234,13 @@ jobs:
           else
             cargo build --locked --release --target ${{ matrix.target }}
           fi
+        env:
+          CARGO_INCREMENTAL: "1"
+
+      - name: Build release binary (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: cargo build --locked --release --target ${{ matrix.target }}
         env:
           CARGO_INCREMENTAL: "0"
 
@@ -204,6 +259,18 @@ jobs:
           fi
           echo "sha256=$SHA" >> "$GITHUB_OUTPUT"
           echo "$SHA  ${{ matrix.artifact_name }}" >> sha256sums.txt
+
+      - name: Save Cargo cache (Linux self-hosted)
+        if: always() && runner.os == 'Linux'
+        uses: BTCDecoded/rust-ci/runner-cargo-cache@main
+        with:
+          operation: save
+
+      - name: Prune old runner caches (Linux self-hosted)
+        if: always() && runner.os == 'Linux'
+        uses: BTCDecoded/rust-ci/runner-cargo-cache@main
+        with:
+          operation: prune
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
