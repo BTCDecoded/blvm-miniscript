@@ -307,6 +307,8 @@ dependencies = [
 [[package]]
 name = "blvm-consensus"
 version = "0.1.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "acf4cb128fd801cfb0b7359c52b3679a66395585b41553510f264a3de9ae082f"
 dependencies = [
  "bitcoin_hashes 0.11.0",
  "blvm-primitives",
@@ -329,7 +331,7 @@ dependencies = [
 
 [[package]]
 name = "blvm-miniscript"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -353,6 +355,8 @@ dependencies = [
 [[package]]
 name = "blvm-muhash"
 version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "12b488787aed02ee7c5cd8a7bdf2f855e7b7d0678f745a25236041cd35f225b5"
 dependencies = [
  "chacha20",
  "cipher",
@@ -423,6 +427,8 @@ dependencies = [
 [[package]]
 name = "blvm-primitives"
 version = "0.1.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65382dc6b71bde53a8a590574aecf7f96d5b3ff66a4f6ab34f39b8f353c09b09"
 dependencies = [
  "bitcoin_hashes 0.11.0",
  "ripemd",
@@ -504,6 +510,8 @@ dependencies = [
 [[package]]
 name = "blvm-secp256k1"
 version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b78527cd4e9b19f92c62407f7dd74501c4279ffddf68f2ac506ed3079a112106"
 dependencies = [
  "cc",
  "num-bigint",
@@ -515,6 +523,8 @@ dependencies = [
 [[package]]
 name = "blvm-spec-lock"
 version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd5ca8ef8c9bc618f0795f43b77b4186eb530e814666cc249511ff3c2f5072a2"
 dependencies = [
  "anyhow",
  "clap",
@@ -3759,19 +3769,3 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
-
-[[patch.unused]]
-name = "blvm-node"
-version = "0.1.8"
-
-[[patch.unused]]
-name = "blvm-protocol"
-version = "0.1.8"
-
-[[patch.unused]]
-name = "blvm-sdk"
-version = "0.1.0"
-
-[[patch.unused]]
-name = "blvm-sdk-macros"
-version = "0.1.0"
