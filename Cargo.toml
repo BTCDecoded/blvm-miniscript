@@ -16,7 +16,9 @@ path = "src/main.rs"
 
 [dependencies]
 # blvm-node for module system integration
-blvm-node = ">=0.1, <1"
+# `sled` is required for module KV (`open_module_db`). crates.io blvm-sdk 0.1.5 `node` feature
+# does not pull `blvm-node/sled`; declare it here so published module binaries work.
+blvm-node = { version = ">=0.1, <1", features = ["sled"] }
 
 # Async runtime
 tokio = { version = "1.48", features = ["full"] }

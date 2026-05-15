@@ -25,7 +25,3 @@ log_level = "Logging level: trace, debug, info, warn, error (default: info)"
 # The node reads this section during bootstrap install instead of fetching
 # binary URLs from the central registry. SHA-256 is verified before execution.
 # ---------------------------------------------------------------------------
-[downloads]
-x86_64-linux  = { url = "https://github.com/BTCDecoded/blvm-miniscript/releases/download/v0.1.9/blvm-miniscript-x86_64-linux", sha256 = "0b8fc597a0249d2f66bd14204c364ff50b53e08b05853717b1837f3e2d58ca9c" }
-aarch64-linux = { url = "https://github.com/BTCDecoded/blvm-miniscript/releases/download/v0.1.9/blvm-miniscript-aarch64-linux", sha256 = "eece6b409b6c13b53268abe7540359e973bd7c3885245e16a00283844db59d38" }
-x86_64-windows= { url = "https://github.com/BTCDecoded/blvm-miniscript/releases/download/v0.1.9/blvm-miniscript-x86_64-windows.exe", sha256 = "4869847bd1ec8040e61b91dd826bdb148197e56d4f060d9ac5ad71d5e3a78ada" }
