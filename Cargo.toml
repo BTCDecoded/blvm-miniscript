@@ -1,6 +1,6 @@
 [package]
 name = "blvm-miniscript"
-version = "0.1.10"
+version = "0.1.11"
 edition = "2021"
 authors = ["Bitcoin Commons Team"]
 description = "Miniscript descriptor and PSBT analysis module for blvm-node (getdescriptorinfo, analyzepsbt)"
