@@ -1,4 +1,5 @@
 name: CI
+# Module CI (crates.io resolution; rebuild 2026-06-17)
 
 on:
   push:
