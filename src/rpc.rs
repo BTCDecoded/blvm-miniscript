@@ -6,7 +6,7 @@
 
 use miniscript::bitcoin;
 use miniscript::{Descriptor, DescriptorPublicKey, Miniscript, Segwitv0};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::str::FromStr;
 
 // ── Script type helpers ──────────────────────────────────────────────────────
@@ -153,7 +153,7 @@ pub fn analyze_psbt(params: &Value) -> Value {
         }
     };
 
-    use base64::{engine::general_purpose, Engine as _};
+    use base64::{Engine as _, engine::general_purpose};
     let psbt_bytes = match general_purpose::STANDARD.decode(psbt_str) {
         Ok(b) => b,
         Err(e) => {
