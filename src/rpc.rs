@@ -79,10 +79,10 @@ fn descriptor_checksum(descriptor: &str) -> String {
 }
 
 fn is_range_descriptor(descriptor: &str) -> bool {
-    if let Ok(re) = regex::Regex::new(r"\[\d+,\d+") {
-        if re.is_match(descriptor) {
-            return true;
-        }
+    if let Ok(re) = regex::Regex::new(r"\[\d+,\d+")
+        && re.is_match(descriptor)
+    {
+        return true;
     }
     descriptor.contains("/0/*")
         || descriptor.contains("/*")

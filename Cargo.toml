@@ -2,6 +2,7 @@
 name = "blvm-miniscript"
 version = "0.1.11"
 edition = "2024"
+rust-version = "1.91"
 authors = ["Bitcoin Commons Team"]
 description = "Miniscript descriptor and PSBT analysis module for blvm-node (getdescriptorinfo, analyzepsbt)"
 license = "MIT"
